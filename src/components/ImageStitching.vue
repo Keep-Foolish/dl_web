@@ -1,7 +1,7 @@
 <template>
   <n-card title="待拼接图片">
     <template #header-extra>
-      <n-statistic label="已选择图片" :value="99">
+      <n-statistic label="已选择图片" :value="filesToUpload.length">
         <template #prefix>
           <n-icon>
             <SaveOutline />
@@ -23,7 +23,18 @@
     <template #action>
       <div style="display: flex; justify-content: flex-end; width: 100%;">
         <n-button @click="uploadFile" type="primary">
-          开始识别
+          开始拼接
+        </n-button>
+      </div>
+    </template>
+  </n-card>
+  <n-card title="倒伏检测结果" style="margin-top: 30px;">
+    <n-empty description="暂未拼接" size="large">
+    </n-empty>
+    <template #action>
+      <div style="display: flex; justify-content: flex-end; width: 100%;">
+        <n-button type="primary" @click="saveImage">
+          保存结果
         </n-button>
       </div>
     </template>
