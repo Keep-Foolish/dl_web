@@ -1,0 +1,1 @@
+"D:/3210613030/STD/UAV_ALD/lodging_detection/outfiles/input/" "D:/3210613030/STD/UAV_ALD/lodging_detection/outfiles/output/" "13.png" 234.4
