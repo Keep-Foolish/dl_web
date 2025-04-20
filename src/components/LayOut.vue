@@ -21,18 +21,19 @@
                     </span>
                 </div>
             </n-layout-header>
+                    <template #description>
+                        你不知道你有多幸运
+                    </template> 
+                    <n-layout position="absolute" style="height: 100%;top: 64px; bottom: 64px" has-sider>
+                        <n-layout-sider content-style="padding: 24px;" :native-scrollbar="false" bordered>
+                            <n-menu v-model:value="activeKey" :options="menuOptions" responsive
+                                @update:value="handleMenuSelect" />
+                        </n-layout-sider>
 
-            <n-layout position="absolute" style="height: 100%;top: 64px; bottom: 64px" has-sider>
-                <n-layout-sider content-style="padding: 24px;" :native-scrollbar="false" bordered>
-                    <n-menu v-model:value="activeKey" :options="menuOptions" responsive
-                        @update:value="handleMenuSelect" />
-                </n-layout-sider>
-
-                <n-layout content-style="padding: 24px;" :native-scrollbar="false">
-                    <router-view></router-view>
-                </n-layout>
-
-            </n-layout>
+                        <n-layout content-style="padding: 24px;" :native-scrollbar="false">
+                            <router-view></router-view>
+                        </n-layout>
+                    </n-layout>
         </n-layout>
     </div>
 </template>
@@ -42,7 +43,7 @@
 import { AlbumsOutline as Albums, ImageOutline as Image, TimeOutline as TimeOut } from '@vicons/ionicons5';
 import { NIcon } from 'naive-ui';
 import { RouterLink, useRouter } from 'vue-router';
-import { h, ref, onMounted } from 'vue';
+import { h, ref } from 'vue';
 
 const activeKey = ref(""); // 记录当前选中的菜单项
 const router = useRouter();
