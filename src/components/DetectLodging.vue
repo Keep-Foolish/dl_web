@@ -38,8 +38,11 @@
               </div>
             </div>
           </template>
-          <n-empty description="请先选择图片" size="large">
-          </n-empty>
+          <n-empty v-if="imageUrl == null" description="请先选择图片" size="large" />
+          <div v-else class="result_image_container">
+            <n-image :src="rgb_image_url" :height="400" />
+            <n-image :src="imageUrl" :height="400" />
+          </div>
           <template #footer>
             <div style="display: flex; justify-content: flex-end; width: 100%;">
               <n-statistic label="倒伏数据" style="margin-right: 40px;white-space: pre;">
@@ -49,14 +52,19 @@
           </template>
           <template #action>
             <div style="display: flex; justify-content: flex-end; width: 100%;">
-              <n-button @click="startPredict(tifUploadInfo)" type="primary" :disabled="startPredictButton">
+              <n-button @click="startPredict(tifUploadInfo)" type="info" :disabled="startPredictButton && current == 1">
                 开始识别
               </n-button>
               <div style="width: 20px;"> </div>
               <div style="width: 20px;"> </div>
-              <n-button type="primary" @click="saveImage" :disabled="current !== 3">
+              <n-button type="primary"
+                @click="saveFilesAsZip(rgb_image_url, imageUrl, predictiveData, tifUploadInfo.png_filename)"
+                :disabled="current !== 3">
                 保存结果
               </n-button>
+              <div style="width: 20px;"> </div>
+              <div style="width: 20px;"> </div>
+              <n-button type="warning" @click="refreshPage" :disabled="current !== 3">重新选择</n-button>
             </div>
           </template>
         </n-card>
@@ -73,6 +81,7 @@ import { useLoadingBar } from 'naive-ui'
 import { ArchiveOutline as ArchiveIcon } from "@vicons/ionicons5";
 import { useDialog, useMessage } from "naive-ui";
 import { load } from '../untils/loading.js';
+import { saveFilesAsZip } from '../untils/download.js'
 
 const message = useMessage();
 const dialog = useDialog();
@@ -101,9 +110,9 @@ const handleError = () => {
 const current = ref(1); //记录当前在哪一步
 const currentStatus = ref("process"); //记录这一步的状态
 
-const responseData = ref(null); // 新增：存储后端返回的数据
+const responseData = ref(null); //存储后端返回的数据
 const uploadRef = ref(null);
-const fileToUpload = ref(null); //保存选择的文件
+const fileToUpload = ref(null); //保存选择的文件 
 
 // 倒伏面积
 const lodging_area = ref('待检测')
@@ -141,9 +150,9 @@ const handlePreview = (file) => {
 };
 
 // 自动上传
-let tifUploadInfo = null
+let tifUploadInfo = null;
 const customUploadRequest = async ({ file, onProgress, onFinish, onError }) => {
-  handleStart()
+  handleStart();
   console.log("正在自动上传tif文件:", file);
 
   const formData = new FormData();
@@ -155,77 +164,98 @@ const customUploadRequest = async ({ file, onProgress, onFinish, onError }) => {
         'Content-Type': 'multipart/form-data'
       }
     });
-    tifUploadInfo = response.data.params
-    current.value = 2
-    console.log("上传成功，服务器响应:", response.data.params);
-    startPredictButton.value = false
 
-    handleFinish()//上方进度条
-    message.success("tif图像上传成功")
+    // 后端返回数据的状态检查
+    if (response.data && response.data.message) {
+      const responseMessage = response.data.message;
+
+      // 检查是否是图像坐标参考系统（CRS）不符合要求的错误
+      if (responseMessage.includes("坐标参考系统（CRS）不符合要求") || responseMessage.includes("上传的图像坐标参考系统（CRS）不符合要求")) {
+        handleError(); // 进度条错误处理
+        onError(); // 上传失败回调
+        message.error(responseMessage || "上传的图像不符合要求");
+        return;
+      }
+
+      // 其他错误信息
+      handleError(); // 进度条错误处理
+      onError(); // 上传失败回调
+      message.error(responseMessage || "上传过程中发生错误");
+      return;
+    }
+
+    // 如果没有错误信息，说明上传成功
+    tifUploadInfo = response.data.params;
+    current.value = 2;
+    console.log("上传成功，服务器响应:", response.data.params);
+    startPredictButton.value = false;
+
+    handleFinish(); // 上方进度条
+    message.success("tif图像上传成功");
     onFinish(); // 上传成功回调
+
   } catch (error) {
     console.error("上传错误:", error);
-    handleError()//上方进度条
+    handleError(); // 进度条错误处理
     onError(); // 上传失败回调
     message.error("上传过程中发生错误");
   }
 };
 
+
 // 开始识别
+const rgb_image_url = ref(null) //原图url
 const imageUrl = ref(null)
 const startPredict = async (tifUploadInfo) => {
-  console.log("开始识别", tifUploadInfo);
-  try {
-    // 1. 发送预测请求获取元数据和图片URL
-    load.show("识别中，请稍候...");
-    const predictResponse = await axios.post(
-      `${config.apiUrl}/predict`,
-      tifUploadInfo,
-      {
-        headers: { 'Content-Type': 'application/json' },
-        responseType: 'json'
-      }
-    );
+  if (!startPredictButton.value) {
+    dialog.warning("识别结果已返回，请自行保存。")
+  } else {
+    console.log("开始识别", tifUploadInfo);
+    try {
+      // 1. 发送预测请求获取元数据和图片URL
+      load.show("识别中，请稍候...");
+      const predictResponse = await axios.post(
+        `${config.apiUrl}/predict`,
+        tifUploadInfo,
+        {
+          headers: { 'Content-Type': 'application/json' },
+          responseType: 'json'
+        }
+      );
 
-    current.value = 3
-    load.hide()
-    console.log('元数据:', predictResponse.data.json);
-    console.log('图片URL:', predictResponse.data.image_url);
+      current.value = 3
 
-    // 2. 存储元数据
-    predictiveData.value = predictResponse.data.json;
-    const lodgingRatio =
-      predictiveData.value.area_analysis.lodged_area_m2 /
-      (predictiveData.value.area_analysis.lodged_area_m2 +
-        predictiveData.value.area_analysis.healthy_area_m2);
-    const lodgingRatioPercent = (lodgingRatio * 100).toFixed(2) + '%';
+      console.log('元数据:', predictResponse.data.json);
 
-    // 渲染数据
-    lodging_area.value =
-      `倒伏区域：${predictiveData.value.area_analysis.lodged_area_m2}    正常区域：${predictiveData.value.area_analysis.healthy_area_m2}    倒伏比例：${lodgingRatioPercent}`;
+      // 2. 存储元数据
+      predictiveData.value = predictResponse.data.json;
+      const lodgingRatio =
+        predictiveData.value.area_analysis.lodged_area_m2 /
+        (predictiveData.value.area_analysis.lodged_area_m2 +
+          predictiveData.value.area_analysis.healthy_area_m2);
+      const lodgingRatioPercent = (lodgingRatio * 100).toFixed(2) + '%';
 
+      // 渲染数据
+      lodging_area.value =
+        `倒伏区域：${predictiveData.value.area_analysis.lodged_area_m2}㎡    正常区域：${predictiveData.value.area_analysis.healthy_area_m2}㎡    倒伏比例：${lodgingRatioPercent}`;
 
+      // 请求图片
+      let imagePath = predictResponse.data.seg_image_url
+      rgb_image_url.value = `${config.apiUrl}/download_image?image_path=${encodeURIComponent(predictResponse.data.rgb_image_url)}`;
+      imageUrl.value = `${config.apiUrl}/download_image?image_path=${encodeURIComponent(imagePath)}`;
+      console.log("imageUrl.value", imageUrl.value)
+      load.hide()
 
-    // 3. 通过返回的URL获取图片（自动处理）
-    // 如果是方法1返回的/image_url端点，直接使用即可
-    imageUrl.value = `${config.apiUrl}${predictResponse.data.image_url}`;
-
-    // 或者如果需要额外下载图片（可选）：
-    // const imageResponse = await axios.get(`${config.apiUrl}${predictResponse.data.image_url}`, {
-    //   responseType: 'blob'
-    // });
-    // imageUrl.value = URL.createObjectURL(imageResponse.data);
-
-  } catch (error) {
-    console.error('请求失败:', error);
-    // 可以添加用户提示
-    alert(`识别失败: ${error.response?.data?.message || error.message}`);
+    } catch (error) {
+      console.error('请求失败:', error);
+      // 可以添加用户提示
+      alert(`识别失败: ${error.response?.data?.message || error.message}`);
+    }
   }
 };
 
-
-const saveImage = () => {
-  message.success("保存成功")
+const refreshPage = () => {
+  window.location.reload(); // 刷新页面
 }
 </script>
 
@@ -258,5 +288,10 @@ const saveImage = () => {
 
 .result-card {
   margin-bottom: 50px;
+}
+
+.result_image_container {
+  display: flex;
+  justify-content: space-around;
 }
 </style>
