@@ -1,6 +1,6 @@
 <template>
   <n-card title="历史记录">
-    <div v-if="historylist.length == []">
+    <div v-if="allData.length === 0">
       <n-empty description="暂无历史记录">
         <template #icon>
           <n-icon>
@@ -10,24 +10,55 @@
       </n-empty>
     </div>
     <div v-else>
-      <n-timeline>
-        <n-timeline-item content="啊" />
-        <n-timeline-item type="success" title="成功" content="哪里成功" time="2018-04-03 20:46" />
-        <n-timeline-item type="error" content="哪里错误" time="2018-04-03 20:46" />
-        <n-timeline-item type="warning" title="警告" content="哪里警告" time="2018-04-03 20:46" />
-        <n-timeline-item type="info" title="信息" content="是的" time="2018-04-03 20:46" line-type="dashed" />
-        <n-timeline-item content="啊" />
-      </n-timeline>
+      <div v-for="item in pagedData" :key="item.id" style="margin-bottom: 20px;">
+        <n-card :title="item.title">
+          <template #header-extra>
+            ID: {{ item.id }}
+          </template>
+          {{ item.content }}
+          <template #footer>
+            底部信息
+          </template>
+          <template #action>
+            <div style="display: flex; justify-content: flex-end; width: 100%; margin-top: -10px; margin-bottom: -10px;">
+              <n-button type="success">
+                下载
+              </n-button>
+            </div>
+          </template>
+        </n-card>
+      </div>
+
+      <div style="display: flex; justify-content: center; margin-top: 20px; margin-bottom: 40px;">
+        <n-pagination
+          v-model:page="page"
+          :page-count="Math.ceil(allData.length / pageSize)"
+          :page-size="pageSize"
+        />
+      </div>
     </div>
   </n-card>
 </template>
 
 <script setup>
-import { ref } from 'vue'
-import { useRouter } from 'vue-router';
+import { ref, computed } from 'vue'
+import { IosAirplane } from '@vicons/ionicons4'
 
-const router = useRouter();
-const historylist = ref(["a"])
+const page = ref(1)
+const pageSize = 3
+
+const allData = ref(
+  Array.from({ length: 200 }, (_, i) => ({
+    id: i + 1,
+    title: `卡片标题 #${i + 1}`,
+    content: `这是第 ${i + 1} 条数据的内容。`
+  }))
+)
+
+const pagedData = computed(() => {
+  const start = (page.value - 1) * pageSize
+  return allData.value.slice(start, start + pageSize)
+})
 </script>
 
-<style lang='scss' scoped></style>
+<style lang="scss" scoped></style>
